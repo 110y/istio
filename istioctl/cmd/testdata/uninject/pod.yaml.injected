@@ -147,13 +147,14 @@ spec:
         add:
         - NET_ADMIN
         - NET_RAW
+        - SYS_MODULE
         drop:
         - ALL
       privileged: false
       readOnlyRootFilesystem: false
-      runAsGroup: 0
-      runAsNonRoot: false
-      runAsUser: 0
+      runAsGroup: 1337
+      runAsNonRoot: true
+      runAsUser: 1337
   volumes:
   - emptyDir:
       medium: Memory
