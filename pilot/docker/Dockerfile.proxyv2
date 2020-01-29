@@ -4,6 +4,13 @@ ARG BASE_DISTRIBUTION=default
 # Version is the base image version from the TLD Makefile
 ARG BASE_VERSION=latest
 
+FROM docker.io/istio/base:${BASE_VERSION} as libpcapbuilder
+RUN apt-get update && \
+    apt-get install --no-install-recommends -y \
+      libcap2-bin \
+   && apt-get clean \
+   && rm -rf  /var/log/*log /var/lib/apt/lists/* /var/log/apt/* /var/lib/dpkg/*-old /var/cache/debconf/*-old
+
 # The following section is used as base image if BASE_DISTRIBUTION=default
 FROM docker.io/istio/base:${BASE_VERSION} as default
 
@@ -14,6 +21,10 @@ COPY gcp_envoy_bootstrap.json /var/lib/istio/envoy/gcp_envoy_bootstrap_tmpl.json
 RUN chown -R istio-proxy /var/lib/istio
 
 COPY istio-iptables /usr/local/bin/istio-iptables
+
+COPY --from=libpcapbuilder /sbin/setcap /sbin
+RUN /sbin/setcap cap_net_admin,cap_net_raw,cap_sys_module+p /usr/local/bin/istio-iptables \
+   && rm -f /sbin/setcap
 
 # The following section is used as base image if BASE_DISTRIBUTION=distroless
 # hadolint ignore=DL3007
@@ -26,6 +37,12 @@ COPY --from=default /usr/lib/x86_64-linux-gnu/ /usr/lib/x86_64-linux-gnu
 COPY --from=default /etc/iproute2 /etc/iproute2
 
 COPY istio-iptables /usr/local/bin/istio-iptables
+
+COPY --from=libpcapbuilder /sbin/setcap /sbin/
+COPY --from=libpcapbuilder /lib/x86_64-linux-gnu/libcap.so.2 /lib/x86_64-linux-gnu/libcap.so.2.25 /lib/
+COPY --from=libpcapbuilder /bin/rm /bin/
+RUN ["/sbin/setcap", "cap_net_admin,cap_net_raw,cap_sys_module+p", "/usr/local/bin/istio-iptables"]
+RUN ["/bin/rm", "-f", "/sbin/setcap", "/lib/x86_64-linux-gnu/libcap.so.2", "/lib/x86_64-linux-gnu/libcap.so.2.25", "/bin/rm"]
 
 # Copy Envoy bootstrap templates used by pilot-agent
 COPY --chown=nonroot:nonroot envoy_bootstrap_v2.json /var/lib/istio/envoy/envoy_bootstrap_tmpl.json
